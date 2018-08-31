@@ -26,6 +26,7 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
+import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
 
@@ -40,10 +41,11 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     private boolean isCheckPermissionOk = false;
 
     private SurfaceView mSurfaceView;
+    private ShowDetectResultView mResultView;
     private ViewGroup.LayoutParams layoutParams;
 
-    private int previewWidth = 1920;
-    private int previewHeight = 1080;
+    public static int previewWidth = 1920;
+    public static int previewHeight = 1080;
     private float ratio;
 
 
@@ -63,6 +65,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mSurfaceView = findViewById(R.id.preview_surface);
+        mResultView = findViewById(R.id.detect_view);
         mSurfaceView.getHolder().addCallback(this);
 
         int permission = ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
@@ -149,8 +152,10 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         Imgproc.cvtColor(mSrcMat, mDesMat, Imgproc.COLOR_YUV420sp2GRAY);
         mFaceCascade.detectMultiScale(mDesMat, matOfRect, 1.1, 5
                 , 2, mMinSize, mMaxSize);
-        if (matOfRect.toArray().length != 0)
+        if (matOfRect.toArray().length != 0) {
             Log.e(TAG, "onPreviewFrameCallback: " + matOfRect.toArray()[0].x + "--" + matOfRect.toArray()[0].y);
+            mResultView.showFace(matOfRect.toArray()[0]);
+        }
         camera.addCallbackBuffer(data);
     }
 
