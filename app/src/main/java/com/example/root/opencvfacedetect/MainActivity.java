@@ -47,6 +47,9 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     public static int previewWidth = 1920;
     public static int previewHeight = 1080;
     private float ratio;
+    private volatile boolean isStart = false;
+
+    private byte[] frameDatas = null;
 
 
     private int mSurfaceViewWidth;
@@ -54,6 +57,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     private org.opencv.core.Size mMinSize = new org.opencv.core.Size(Math.round(mSurfaceViewHeight * 0.2), Math.round(mSurfaceViewHeight * 0.2));
     private org.opencv.core.Size mMaxSize = new org.opencv.core.Size();
 
+    private Camera mCamera;
     private File mCascadeFile;
     private CascadeClassifier mFaceCascade;
     private Mat mSrcMat;
@@ -137,6 +141,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         layoutParams.height = mSurfaceViewHeight;
         mSurfaceView.setLayoutParams(layoutParams);
         CameraApi.getInstance().startPreview(holder);
+        isStart = true;
+        new DetectThread("DetectThread").start();
 
     }
 
@@ -144,19 +150,46 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     public void surfaceDestroyed(SurfaceHolder holder) {
         Log.e(TAG, "surfaceDestroyed: ");
         CameraApi.getInstance().stopCamera();
+        isStart = false;
+    }
+
+    private class DetectThread extends Thread{
+        public DetectThread(String name) {
+            super(name);
+        }
+
+        @Override
+        public void run() {
+            super.run();
+            while (isStart){
+                if (frameDatas!=null) {
+                    mSrcMat.put(0, 0, frameDatas);
+                    Imgproc.cvtColor(mSrcMat, mDesMat, Imgproc.COLOR_YUV2GRAY_420);
+                    mFaceCascade.detectMultiScale(mDesMat, matOfRect, 1.1, 5
+                            , 2, mMinSize, mMaxSize);
+                    if (matOfRect.toArray().length != 0) {
+                        mResultView.showFace(matOfRect.toArray()[0]);
+                    }
+                    mCamera.addCallbackBuffer(frameDatas);
+                }
+            }
+        }
     }
 
     @Override
     public void onPreviewFrameCallback(byte[] data, Camera camera) {
-        mSrcMat.put(0, 0, data);
-        Imgproc.cvtColor(mSrcMat, mDesMat, Imgproc.COLOR_YUV420sp2GRAY);
-        mFaceCascade.detectMultiScale(mDesMat, matOfRect, 1.1, 5
-                , 2, mMinSize, mMaxSize);
-        if (matOfRect.toArray().length != 0) {
-            Log.e(TAG, "onPreviewFrameCallback: " + matOfRect.toArray()[0].x + "--" + matOfRect.toArray()[0].y);
-            mResultView.showFace(matOfRect.toArray()[0]);
-        }
-        camera.addCallbackBuffer(data);
+//        mSrcMat.put(0, 0, data);
+//        Imgproc.cvtColor(mSrcMat, mDesMat, Imgproc.COLOR_YUV420sp2GRAY);
+//        mFaceCascade.detectMultiScale(mDesMat, matOfRect, 1.1, 5
+//                , 2, mMinSize, mMaxSize);
+//        if (matOfRect.toArray().length != 0) {
+//            Log.e(TAG, "onPreviewFrameCallback: " + matOfRect.toArray()[0].x + "--" + matOfRect.toArray()[0].y);
+//            mResultView.showFace(matOfRect.toArray()[0]);
+//        }
+//        camera.addCallbackBuffer(data);
+        frameDatas = data;
+        mCamera = camera;
+
     }
 
     @Override

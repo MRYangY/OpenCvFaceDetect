@@ -11,6 +11,7 @@ import android.view.View;
 import org.opencv.core.Rect;
 
 public class ShowDetectResultView extends View {
+    private static final String TAG = "ShowDetectResultView";
     private Paint mFacePaint;
     private int mCanvasWidth;
     private int mCanvasHeight;
@@ -42,11 +43,11 @@ public class ShowDetectResultView extends View {
     }
 
     private float widthFactor() {
-        return mCanvasWidth / MainActivity.previewWidth;
+        return (float) mCanvasWidth / (float) MainActivity.previewWidth;
     }
 
     private float heightFactor() {
-        return mCanvasHeight / MainActivity.previewHeight;
+        return (float) mCanvasHeight / (float) MainActivity.previewHeight;
     }
 
     public void showFace(Rect rect) {
@@ -59,7 +60,7 @@ public class ShowDetectResultView extends View {
         mRect.top = t;
         mRect.right = r;
         mRect.bottom = b;
-        invalidate();
+        postInvalidate();
     }
 
 }
