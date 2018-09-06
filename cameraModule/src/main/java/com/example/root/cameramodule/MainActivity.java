@@ -112,4 +112,9 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     public void onNotSupportErrorTip(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
+
+    @Override
+    public void onCameraInit(Camera camera) {
+
+    }
 }

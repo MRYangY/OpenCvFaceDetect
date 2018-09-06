@@ -103,6 +103,7 @@ public class CameraApi implements Camera.PreviewCallback {
                 return;
             }
             mCamera = Camera.open(mCameraId);
+            cameraApiCallback.onCameraInit(mCamera);
         }
     }
 

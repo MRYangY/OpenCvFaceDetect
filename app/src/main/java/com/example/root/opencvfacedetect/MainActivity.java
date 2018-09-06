@@ -212,7 +212,6 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     @Override
     public void onPreviewFrameCallback(byte[] data, Camera camera) {
-        mCamera = camera;
         mCamera.addCallbackBuffer(data);
         if (isStart) {
             CameraRawData rawData = mFreeQueue.poll();
@@ -244,6 +243,11 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     @Override
     public void onNotSupportErrorTip(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onCameraInit(Camera camera) {
+        mCamera = camera;
     }
 
     private LoaderCallbackInterface mLoaderCallback = new LoaderCallbackInterface() {
