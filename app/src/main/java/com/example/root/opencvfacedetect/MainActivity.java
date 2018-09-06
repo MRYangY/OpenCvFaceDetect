@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Point;
 import android.hardware.Camera;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -34,35 +36,50 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import javax.crypto.Mac;
 
 public class MainActivity extends AppCompatActivity implements SurfaceHolder.Callback, ICameraApiCallback {
     private static final String TAG = "MainActivity";
     private final int PERMISSION_CAMERA_REQUEST_CODE = 0x10;
     private boolean isCheckPermissionOk = false;
+    private boolean isLoadSuccess = false;
+    private static final Scalar FACE_RECT_COLOR = new Scalar(0, 255, 0, 255);
 
     private SurfaceView mSurfaceView;
     private ShowDetectResultView mResultView;
     private ViewGroup.LayoutParams layoutParams;
 
-    public static int previewWidth = 1920;
-    public static int previewHeight = 1080;
+    public static int previewWidth = 1280;
+    public static int previewHeight = 720;
     private float ratio;
     private volatile boolean isStart = false;
 
     private byte[] frameDatas = null;
+    private final byte[] mLock = new byte[0];
 
 
     private int mSurfaceViewWidth;
     private int mSurfaceViewHeight;
-    private org.opencv.core.Size mMinSize = new org.opencv.core.Size(Math.round(mSurfaceViewHeight * 0.2), Math.round(mSurfaceViewHeight * 0.2));
+    private org.opencv.core.Size mMinSize = new org.opencv.core.Size(Math.round(1080 * 0.2), Math.round(1080 * 0.2));
     private org.opencv.core.Size mMaxSize = new org.opencv.core.Size();
 
     private Camera mCamera;
+    private CameraRawData mCameraRawData = null;
     private File mCascadeFile;
     private CascadeClassifier mFaceCascade;
     private Mat mSrcMat;
     private Mat mDesMat;
     private MatOfRect matOfRect;
+
+//    private Handler mMainHandler = new Handler(Looper.getMainLooper());
+
+    private final int BUFFER_SIZE = 5;
+    private BlockingQueue<CameraRawData> mFreeQueue = new LinkedBlockingQueue<>(BUFFER_SIZE);
+    private BlockingQueue<CameraRawData> mFrameQueue = new LinkedBlockingQueue<>(BUFFER_SIZE);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -153,43 +170,75 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         isStart = false;
     }
 
-    private class DetectThread extends Thread{
-        public DetectThread(String name) {
+    /**
+     * face detect thread
+     */
+    private class DetectThread extends Thread {
+        DetectThread(String name) {
             super(name);
         }
 
         @Override
         public void run() {
             super.run();
-            while (isStart){
-                if (frameDatas!=null) {
+            while (isStart && isLoadSuccess) {
+                synchronized (mLock) {
+                    try {
+                        mCameraRawData = mFrameQueue.poll(20, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    if (mCameraRawData == null) {
+                        continue;
+                    }
+                    frameDatas = mCameraRawData.getRawData();
                     mSrcMat.put(0, 0, frameDatas);
                     Imgproc.cvtColor(mSrcMat, mDesMat, Imgproc.COLOR_YUV2GRAY_420);
                     mFaceCascade.detectMultiScale(mDesMat, matOfRect, 1.1, 5
                             , 2, mMinSize, mMaxSize);
                     if (matOfRect.toArray().length != 0) {
                         mResultView.showFace(matOfRect.toArray()[0]);
+                    } else {
+                        mResultView.clear();
                     }
+                    mFreeQueue.offer(mCameraRawData);
                     mCamera.addCallbackBuffer(frameDatas);
                 }
+
             }
         }
     }
 
     @Override
     public void onPreviewFrameCallback(byte[] data, Camera camera) {
-//        mSrcMat.put(0, 0, data);
-//        Imgproc.cvtColor(mSrcMat, mDesMat, Imgproc.COLOR_YUV420sp2GRAY);
-//        mFaceCascade.detectMultiScale(mDesMat, matOfRect, 1.1, 5
-//                , 2, mMinSize, mMaxSize);
-//        if (matOfRect.toArray().length != 0) {
-//            Log.e(TAG, "onPreviewFrameCallback: " + matOfRect.toArray()[0].x + "--" + matOfRect.toArray()[0].y);
-//            mResultView.showFace(matOfRect.toArray()[0]);
-//        }
-//        camera.addCallbackBuffer(data);
-        frameDatas = data;
         mCamera = camera;
+        mCamera.addCallbackBuffer(data);
+        if (isStart) {
+            CameraRawData rawData = mFreeQueue.poll();
+            if (rawData != null) {
+                rawData.setRawData(data);
+                rawData.setTimestamp(System.currentTimeMillis());
+                mFrameQueue.offer(rawData);
+            }
+        }
 
+    }
+
+    private void init() {
+        mSrcMat = new Mat(previewHeight, previewWidth, CvType.CV_8UC1);
+        mDesMat = new Mat(previewHeight, previewWidth, CvType.CV_8UC1);
+        matOfRect = new MatOfRect();
+        initQueue();
+    }
+
+    private void initQueue() {
+        if (mFreeQueue.isEmpty()) {
+            for (int i = 0; i < BUFFER_SIZE; i++) {
+                CameraRawData rawData = new CameraRawData();
+                mFreeQueue.offer(rawData);
+            }
+        }
     }
 
     @Override
@@ -201,10 +250,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         @Override
         public void onManagerConnected(int status) {
             if (status == LoaderCallbackInterface.SUCCESS) {
-                mSrcMat = new Mat(previewHeight, previewWidth, CvType.CV_8UC1);
-                mDesMat = new Mat(previewHeight, previewWidth, CvType.CV_8UC1);
-                matOfRect = new MatOfRect();
-
+                init();
+                isLoadSuccess = true;
                 try {
                     // load cascade file from application resources
                     InputStream is = getResources().openRawResource(R.raw.lbpcascade_frontalface);
@@ -245,4 +292,14 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
         }
     };
+
+//    private Runnable showRectRunnable = new Runnable() {
+//        @Override
+//        public void run() {
+//            Log.e(TAG, "run: ...." + Thread.currentThread());
+//            Mat rgb = new Mat();
+//            Imgproc.cvtColor(mSrcMat, rgb, Imgproc.COLOR_YUV2RGBA_NV21, 4);
+//            Imgproc.rectangle(rgb, new org.opencv.core.Point(100, 100), new org.opencv.core.Point(500, 500), FACE_RECT_COLOR, 3);
+//        }
+//    };
 }

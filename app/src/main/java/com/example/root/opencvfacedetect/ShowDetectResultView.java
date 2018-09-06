@@ -4,6 +4,8 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.view.View;
@@ -13,8 +15,14 @@ import org.opencv.core.Rect;
 public class ShowDetectResultView extends View {
     private static final String TAG = "ShowDetectResultView";
     private Paint mFacePaint;
+    private Paint mClearPaint;
+
+    private PorterDuffXfermode mClearPorter;
+    private PorterDuffXfermode mSrcPorter;
+
     private int mCanvasWidth;
     private int mCanvasHeight;
+    private boolean isClear = false;
     private android.graphics.Rect mRect = new android.graphics.Rect();
 
     public ShowDetectResultView(Context context) {
@@ -31,6 +39,10 @@ public class ShowDetectResultView extends View {
         mFacePaint.setColor(Color.GREEN);
         mFacePaint.setStyle(Paint.Style.STROKE);
         mFacePaint.setStrokeWidth(10);
+
+        mClearPaint = new Paint();
+        mClearPorter = new PorterDuffXfermode(PorterDuff.Mode.CLEAR);
+        mSrcPorter = new PorterDuffXfermode(PorterDuff.Mode.SRC);
     }
 
     @Override
@@ -38,8 +50,13 @@ public class ShowDetectResultView extends View {
         super.onDraw(canvas);
         mCanvasWidth = canvas.getWidth();
         mCanvasHeight = canvas.getHeight();
-
-        canvas.drawRect(mRect, mFacePaint);
+        if (isClear) {
+            mClearPaint.setXfermode(mClearPorter);
+            canvas.drawPaint(mClearPaint);
+            mClearPaint.setXfermode(mSrcPorter);
+        } else {
+            canvas.drawRect(mRect, mFacePaint);
+        }
     }
 
     private float widthFactor() {
@@ -51,6 +68,7 @@ public class ShowDetectResultView extends View {
     }
 
     public void showFace(Rect rect) {
+        isClear = false;
         int l = (int) (rect.x * widthFactor());
         int t = (int) (rect.y * heightFactor());
         int r = (int) ((rect.x + rect.width) * widthFactor());
@@ -60,6 +78,11 @@ public class ShowDetectResultView extends View {
         mRect.top = t;
         mRect.right = r;
         mRect.bottom = b;
+        postInvalidate();
+    }
+
+    public void clear() {
+        isClear = true;
         postInvalidate();
     }
 
