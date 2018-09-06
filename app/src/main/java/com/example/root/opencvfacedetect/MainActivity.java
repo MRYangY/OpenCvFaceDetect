@@ -28,6 +28,7 @@ import org.opencv.android.OpenCVLoader;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.objdetect.CascadeClassifier;
@@ -198,7 +199,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
                     mFaceCascade.detectMultiScale(mDesMat, matOfRect, 1.1, 5
                             , 2, mMinSize, mMaxSize);
                     if (matOfRect.toArray().length != 0) {
-                        mResultView.showFace(matOfRect.toArray()[0]);
+                        Rect rect = getBiggestFace(matOfRect.toArray());
+                        mResultView.showFace(rect);
                     } else {
                         mResultView.clear();
                     }
@@ -296,6 +298,25 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
         }
     };
+
+    /**
+     * get biggest width face rect
+     * @param rects
+     * @return
+     */
+    private Rect getBiggestFace(Rect[] rects) {
+        int bestWidth = 0;
+        Rect bestRect = null;
+        for (Rect r : rects
+                ) {
+            if (bestWidth < r.width) {
+                bestWidth = r.width;
+                bestRect = r;
+            }
+
+        }
+        return bestRect;
+    }
 
 //    private Runnable showRectRunnable = new Runnable() {
 //        @Override
