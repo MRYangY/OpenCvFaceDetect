@@ -53,6 +53,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
     private SurfaceView mSurfaceView;
     private ShowDetectResultView mResultView;
     private ViewGroup.LayoutParams layoutParams;
+    private SurfaceHolder mSurfaceHolder;
 
     public static int previewWidth = 1280;
     public static int previewHeight = 720;
@@ -113,6 +114,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         if (requestCode == PERMISSION_CAMERA_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 isCheckPermissionOk = true;
+                onStartPreview();
             }
         }
     }
@@ -132,8 +134,8 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
+        Log.e(TAG, "surfaceCreated: ");
         if (isCheckPermissionOk) {
-            Log.e(TAG, "surfaceCreated: ");
             CameraApi.getInstance().setCameraId(CameraApi.CAMERA_INDEX_BACK);
             CameraApi.getInstance().initCamera(this, this);
             CameraApi.getInstance().setPreviewSize(new Size(previewWidth, previewHeight));
@@ -143,6 +145,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        mSurfaceHolder = holder;
         ratio = (float) (previewWidth) / (float) (previewHeight);
         layoutParams = mSurfaceView.getLayoutParams();
         if (mSurfaceViewHeight > mSurfaceViewWidth) {
@@ -158,10 +161,25 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         layoutParams.width = mSurfaceViewWidth;
         layoutParams.height = mSurfaceViewHeight;
         mSurfaceView.setLayoutParams(layoutParams);
-        CameraApi.getInstance().startPreview(holder);
+        if (isCheckPermissionOk) {
+            CameraApi.getInstance().startPreview(holder);
+            isStart = true;
+            new DetectThread("DetectThread").start();
+        }
+
+    }
+
+    /**
+     * permission grant then start preview
+     */
+    private void onStartPreview() {
+        CameraApi.getInstance().setCameraId(CameraApi.CAMERA_INDEX_BACK);
+        CameraApi.getInstance().initCamera(this, this);
+        CameraApi.getInstance().setPreviewSize(new Size(previewWidth, previewHeight));
+        CameraApi.getInstance().setFps(30).configCamera();
+        CameraApi.getInstance().startPreview(mSurfaceHolder);
         isStart = true;
         new DetectThread("DetectThread").start();
-
     }
 
     @Override
@@ -226,6 +244,9 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     }
 
+    /**
+     * core field init
+     */
     private void init() {
         mSrcMat = new Mat(previewHeight, previewWidth, CvType.CV_8UC1);
         mDesMat = new Mat(previewHeight, previewWidth, CvType.CV_8UC1);
@@ -252,6 +273,10 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         mCamera = camera;
     }
 
+
+    /**
+     * callback about load opencv's library
+     */
     private LoaderCallbackInterface mLoaderCallback = new LoaderCallbackInterface() {
         @Override
         public void onManagerConnected(int status) {
@@ -301,6 +326,7 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
 
     /**
      * get biggest width face rect
+     *
      * @param rects
      * @return
      */
